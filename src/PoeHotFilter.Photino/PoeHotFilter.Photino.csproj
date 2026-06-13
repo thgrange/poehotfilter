@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>PoeHotFilter.Photino</RootNamespace>
+    <AssemblyName>PoeHotFilter</AssemblyName>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>wwwroot\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Photino: lightweight native window hosting the OS WebView (WebView2 on Windows). -->
+    <PackageReference Include="Photino.NET" Version="3.1.13" />
+    <!-- Global hotkey hook + key simulation (same as the Avalonia build). -->
+    <PackageReference Include="SharpHook" Version="5.3.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PoeHotFilter.Core\PoeHotFilter.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Ship the web UI next to the exe — both for `dotnet build` (output) and `dotnet publish`. -->
+    <Content Include="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

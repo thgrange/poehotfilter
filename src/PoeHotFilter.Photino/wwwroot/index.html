@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PoeHotFilter</title>
+<!-- A font by Jos Buivenga (exljbris) -> www.exljbris.com -->
+<style>
+  /* A font by Jos Buivenga (exljbris) -> www.exljbris.com */
+  @font-face{ font-family:'Fontin'; src:url('Fontin.ttf') format('truetype'); font-display:swap; }
+  @font-face{ font-family:'FontinSC'; src:url('FontinSmallCaps.ttf') format('truetype'); font-display:swap; }
+  :root{
+    --stone-deep:#0E0C0A; --stone-panel:#15110D; --stone-raised:#221C16;
+    --stone-border:#3A2F22; --gold-bright:#C9A24B; --gold-dim:#8A7438;
+    --parchment:#E8DCC0; --blood:#9B2B23; --muted:#9A8E76;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; overflow:hidden; background:#120E0A; font-family:'Inter','Segoe UI',system-ui,sans-serif;}
+  /* The window itself IS the popup — the panel fills it edge-to-edge, no outer frame/border. */
+  #scrim{ position:fixed; inset:0; display:flex; }
+  @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:none}}
+
+  .panel{ width:100%; height:100vh; display:flex; flex-direction:column; position:relative;
+    background:linear-gradient(180deg,#181410,#120E0A);
+    border:1px solid rgba(201,162,75,.30); /* light gold frame, not the dark brown one */
+    animation:pop .14s cubic-bezier(.2,.9,.3,1.2); }
+  .panel::before{ content:""; position:absolute; top:0; left:0; right:0; height:2px;
+    background:linear-gradient(90deg,transparent,var(--gold-dim) 30%,var(--gold-bright) 50%,var(--gold-dim) 70%,transparent); opacity:.6; }
+  /* sticky in-game preview pinned above the footer */
+  .preview-sticky{ flex-shrink:0; padding:12px 22px; border-top:1px solid var(--stone-border);
+    background:linear-gradient(0deg,#161109,#120E0A); }
+  .preview-sticky .sl{ margin-bottom:8px; }
+  /* Hide mode: styling/preview are irrelevant for a Hide rule. */
+  #capturePanel.hide-mode .styleSec{ display:none; }
+  #capturePanel.hide-mode .preview-sticky{ display:none; }
+  #capturePanel.hide-mode .hideNote{ display:block !important; }
+
+  /* ---- custom-filters list ---- */
+  .ruleItem{ display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px solid var(--stone-border); }
+  .ruleMini{ display:inline-flex; align-items:center; padding:3px 8px; border-radius:3px; white-space:nowrap;
+    font-size:13px; line-height:1; flex-shrink:0; max-width:200px; overflow:hidden; text-overflow:ellipsis; }
+  .ruleMeta{ flex:1; min-width:0; font-size:11px; color:var(--parchment); }
+  .ruleMeta .sub{ color:var(--muted); opacity:.85; margin-top:2px; }
+  .ruleDel{ flex-shrink:0; width:26px; height:26px; border-radius:3px; cursor:pointer; font-size:16px; line-height:1;
+    background:transparent; color:var(--muted); border:1px solid var(--stone-border); }
+  .ruleDel:hover{ color:#fff; border-color:var(--blood); background:rgba(155,43,35,.25); }
+  .header{ padding:18px 22px 14px; border-bottom:1px solid var(--stone-border);
+    background:linear-gradient(180deg,rgba(34,28,22,.6),transparent); flex-shrink:0; position:relative; }
+  .brand{ position:absolute; top:13px; right:18px; width:42px; height:42px;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.6)); opacity:.95; pointer-events:none; }
+  .title{ font-family:'Fontin',Georgia,serif; font-size:22px; color:var(--gold-bright); }
+  .subtitle{ font-size:12px; color:var(--muted); margin-top:3px; }
+  .detected{ font-size:11px; color:var(--gold-dim); margin-top:5px; letter-spacing:.3px; }
+  .hidden-badge{ display:inline-block; margin-left:8px; padding:1px 6px; border-radius:3px;
+                 background:#5a1a1a; color:#ffb4b4; font-size:10px; letter-spacing:.4px;
+                 vertical-align:middle; }
+  .body{ padding:16px 22px; display:flex; flex-direction:column; gap:16px; overflow-y:auto;
+    flex:1 1 auto; min-height:0; } /* grow to fill so the footer sticks to the bottom of the popup */
+  .body::-webkit-scrollbar{width:8px;} .body::-webkit-scrollbar-thumb{background:var(--stone-border);border-radius:4px;}
+  .sl{ font-size:10.5px; font-weight:700; letter-spacing:1px; color:var(--muted); margin-bottom:9px; }
+  .row{ display:flex; align-items:center; gap:12px; }
+  .lbl{ color:var(--parchment); font-size:13px; width:88px; flex-shrink:0; }
+  .hint{ font-size:10px; color:var(--muted); line-height:1.4; margin-top:6px; }
+  select,input[type=number]{ background:var(--stone-deep); color:var(--parchment); border:1px solid var(--stone-border);
+    border-radius:3px; padding:8px 10px; font-size:13px; font-family:inherit; flex:1; }
+  input[type=range]{flex:1; accent-color:var(--gold-bright);}
+  .seg{ display:flex; border:1px solid var(--stone-border); border-radius:4px; overflow:hidden; }
+  .seg button{ flex:1; background:var(--stone-deep); color:var(--muted); border:0; padding:8px 6px; font-size:12px;
+    cursor:pointer; font-family:inherit; border-right:1px solid var(--stone-border); }
+  .seg button:last-child{border-right:0;}
+  .seg button.active{ background:var(--gold-dim); color:var(--stone-deep); font-weight:600; }
+  /* searchable item combobox (manual pick) */
+  .combo{ position:relative; flex:1; }
+  .combo input{ width:100%; background:var(--stone-deep); color:var(--parchment); border:1px solid var(--stone-border);
+    border-radius:3px; padding:8px 10px; font-size:13px; font-family:inherit; }
+  .combo input:focus{ outline:none; border-color:var(--gold-dim); }
+  .combo-drop{ position:absolute; top:calc(100% + 2px); left:0; right:0; z-index:50; max-height:220px; overflow-y:auto;
+    background:var(--stone-panel); border:1px solid var(--stone-border); border-radius:3px; box-shadow:0 6px 18px rgba(0,0,0,.6); }
+  .combo-drop::-webkit-scrollbar{width:8px;} .combo-drop::-webkit-scrollbar-thumb{background:var(--stone-border);border-radius:4px;}
+  .combo-opt{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:7px 10px;
+    font-size:13px; color:var(--parchment); cursor:pointer; }
+  .combo-opt .cat{ color:var(--muted); font-size:11px; flex-shrink:0; }
+  .combo-opt:hover, .combo-opt.sel{ background:var(--stone-raised); color:var(--gold-bright); }
+  .combo-empty{ padding:8px 10px; font-size:12px; color:var(--muted); }
+  .presets{ display:flex; gap:6px; flex-wrap:wrap; }
+  .preset{ padding:5px 9px; border-radius:3px; font-size:11px; cursor:pointer; display:inline-flex; align-items:center; gap:5px;
+    background:var(--stone-deep); border:1px solid var(--stone-border); color:var(--parchment); }
+  .preset:hover{ filter:brightness(1.15); outline:1px solid var(--gold-dim); }
+  .swrow{ display:flex; align-items:center; gap:10px; margin-bottom:9px; }
+  input[type=color]{ width:58px; height:27px; border:1px solid var(--stone-border); border-radius:3px; background:var(--stone-deep); cursor:pointer; padding:2px; }
+  .hex{ font-size:12px; color:var(--muted); font-family:monospace; min-width:66px; }
+  .alpha{ display:flex; align-items:center; gap:6px; flex:1; } .alpha span{font-size:10px; color:var(--muted);}
+  /* real-icon swatch using the atlas */
+  .iconcell{ width:40px; height:40px; background-repeat:no-repeat; image-rendering:auto; }
+  .preview-ground{ border-radius:4px; padding:12px 14px; min-height:0;
+    background:radial-gradient(circle at 38% 38%,#2a2418 0%,#0a0806 72%); border:1px solid #241d14;
+    display:flex; align-items:center; justify-content:center; }
+  #poeIcon{ flex-shrink:0; }
+  #poeLabel{ font-family:'FontinSC','Fontin',Georgia,serif; display:inline-flex; align-items:center; gap:8px; white-space:nowrap;
+    line-height:1; }
+  .footer{ padding:14px 22px; border-top:1px solid var(--stone-border); display:flex; justify-content:space-between;
+    align-items:center; background:linear-gradient(0deg,rgba(34,28,22,.5),transparent); flex-shrink:0; }
+  .esc{ font-size:11px; color:var(--muted); }
+  .btns{ display:flex; gap:10px; }
+  .btn{ padding:9px 18px; border-radius:3px; font-size:13px; border:1px solid transparent; cursor:pointer; font-family:inherit; }
+  .btn.cancel{ background:transparent; color:var(--muted); border-color:var(--stone-border); }
+  .btn.add{ background:linear-gradient(180deg,#c9a24b,#a07f33); color:#1a1206; font-weight:700; }
+</style>
+</head>
+<body>
+<div id="scrim">
+  <div class="panel" id="capturePanel">
+    <div class="header">
+      <img class="brand" src="logo.png" alt="PoeHotFilter">
+      <div class="title" id="hTitle">—</div>
+      <div class="subtitle" id="hSub">—</div>
+      <div class="detected" id="hDet"><span id="hDetText"></span><span id="hHidden" class="hidden-badge" style="display:none;">CURRENTLY HIDDEN</span></div>
+    </div>
+    <div class="body">
+      <!-- manual item picker: only shown when the hotkey fired on empty ground -->
+      <div id="pickSec" style="display:none;">
+        <div class="sl">PICK ITEM</div>
+        <div class="row"><span class="lbl">Item</span>
+          <div class="combo">
+            <input type="text" id="itemSearch" placeholder="Type to search any base…" autocomplete="off" spellcheck="false">
+            <div id="itemDrop" class="combo-drop" style="display:none;"></div>
+          </div></div>
+        <div class="hint">No item was under the cursor — type to search any droppable base.</div>
+      </div>
+      <div>
+        <div class="sl">ACTION</div>
+        <div class="seg" id="actionSeg">
+          <button data-action="Show" class="active">Show / Highlight</button>
+          <button data-action="Hide">Hide</button>
+        </div>
+        <div class="hint hideNote" style="display:none;">Matching items will be hidden (no drop label).</div>
+      </div>
+      <div id="targetSec">
+        <div class="sl">TARGET</div>
+        <div class="row" id="rarityRow"><span class="lbl">Rarity</span>
+          <select id="rarity">
+            <option value="Any">Any</option>
+            <option value="AnyNonUnique">Any non-unique</option>
+            <option value="Normal">Normal</option>
+            <option value="Magic">Magic</option>
+            <option value="Rare">Rare</option>
+            <option value="Unique">Unique</option>
+          </select>
+        </div>
+        <div class="row" id="corruptedRow" style="margin-top:10px;"><span class="lbl">Corrupted</span>
+          <select id="corrupted">
+            <option value="Any">Any</option>
+            <option value="Yes">Yes</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+      </div>
+      <div id="ilvlSec">
+        <div class="sl">ITEM LEVEL</div>
+        <div class="seg" id="ilvlSeg">
+          <button data-mode="Any">Any</button>
+          <button data-mode="GreaterOrEqual" class="active">≥</button>
+          <button data-mode="Exact">Exact</button>
+        </div>
+        <div class="row" style="margin-top:10px;"><span class="lbl">ilvl</span>
+          <input type="number" id="ilvlVal" value="84" min="1" max="100" style="max-width:110px;"></div>
+      </div>
+      <div id="clusterSec" style="display:none;">
+        <div class="sl">CLUSTER JEWEL</div>
+        <div class="row" style="margin-bottom:10px;"><span class="lbl">Enchant</span>
+          <div class="combo">
+            <input type="text" id="enchantSearch" value="Any" autocomplete="off" spellcheck="false">
+            <div id="enchantDrop" class="combo-drop" style="display:none;"></div>
+          </div></div>
+        <div class="seg" id="passiveSeg">
+          <button data-mode="Any" class="active">Any</button>
+          <button data-mode="GreaterOrEqual">≥</button>
+          <button data-mode="Exact">Exact</button>
+        </div>
+        <div class="row" style="margin-top:10px;"><span class="lbl">passives</span>
+          <input type="number" id="passiveVal" value="8" min="2" max="12" style="max-width:110px;"></div>
+      </div>
+      <div id="gemLevelSec">
+        <div class="sl">GEM LEVEL</div>
+        <div class="seg" id="gemLevelSeg">
+          <button data-mode="Any" class="active">Any</button>
+          <button data-mode="GreaterOrEqual">≥</button>
+          <button data-mode="Exact">Exact</button>
+        </div>
+        <div class="row" style="margin-top:10px;"><span class="lbl">level</span>
+          <input type="number" id="gemLevelVal" value="20" min="1" max="40" style="max-width:110px;"></div>
+      </div>
+      <div id="qualitySec">
+        <div class="sl">QUALITY</div>
+        <div class="seg" id="qualitySeg">
+          <button data-mode="Any" class="active">Any</button>
+          <button data-mode="GreaterOrEqual">≥</button>
+          <button data-mode="Exact">Exact</button>
+        </div>
+        <div class="row" style="margin-top:10px;"><span class="lbl">quality %</span>
+          <input type="number" id="qualityVal" value="20" min="1" max="100" style="max-width:110px;"></div>
+      </div>
+      <div id="stackSec">
+        <div class="sl">STACK SIZE (currency)</div>
+        <div class="row"><span class="lbl">Between</span>
+          <input type="number" id="stackMin" min="0" max="9999" placeholder="min" style="max-width:88px;">
+          <span style="color:var(--muted);font-size:12px;">and</span>
+          <input type="number" id="stackMax" min="0" max="9999" placeholder="max" style="max-width:88px;"></div>
+        <div class="hint">Leave empty for no limit — e.g. 5 and 10 = stacks of 5–10.</div>
+      </div>
+      <div class="styleSec">
+        <div class="sl">PRESETS (from active filter)</div>
+        <div class="presets" id="presetChips"></div>
+      </div>
+      <div class="styleSec">
+        <div class="sl">APPEARANCE</div>
+        <div class="swrow"><span class="lbl">Text</span><input type="color" id="textColor" value="#ffff77"><span class="hex" id="textHex"></span>
+          <span class="alpha"><span>α</span><input type="range" id="textA" min="0" max="255" value="255"></span></div>
+        <div class="swrow"><span class="lbl">Border</span><input type="color" id="borderColor" value="#ffff77"><span class="hex" id="borderHex"></span>
+          <span class="alpha"><span>α</span><input type="range" id="borderA" min="0" max="255" value="255"></span></div>
+        <div class="swrow"><span class="lbl">Background</span><input type="color" id="bgColor" value="#000000"><span class="hex" id="bgHex"></span>
+          <span class="alpha"><span>α</span><input type="range" id="bgA" min="0" max="255" value="220"></span></div>
+        <div class="swrow"><span class="lbl">Size</span>
+          <input type="range" id="fontSize" min="18" max="45" value="38"><span class="hex" id="fsVal"></span></div>
+      </div>
+      <div class="styleSec">
+        <div class="sl">MINIMAP ICON (real game icons)</div>
+        <div class="row" style="margin-bottom:8px;"><span class="lbl">Shape</span>
+          <select id="iconShape"></select></div>
+        <div class="row" style="margin-bottom:8px;"><span class="lbl">Color</span>
+          <select id="iconColor"></select></div>
+        <div class="row"><span class="lbl">Size</span>
+          <select id="iconSize">
+            <option value="0">Large (0)</option>
+            <option value="1" selected>Medium (1)</option>
+            <option value="2">Small (2)</option>
+          </select></div>
+      </div>
+      <div class="styleSec">
+        <div class="sl">DROP SOUND</div>
+        <div class="row" style="margin-bottom:8px;"><span class="lbl">Sound</span>
+          <button id="btnPlaySound" class="btn cancel" style="flex:0 0 auto;padding:8px 12px;order:2;" title="Preview">▶</button>
+          <select id="alertSound" style="order:1;"></select></div>
+        <div class="row"><span class="lbl">Volume</span>
+          <input type="range" id="alertVolume" min="0" max="300" value="100"><span class="hex" id="avVal"></span></div>
+      </div>
+    </div>
+    <div class="preview-sticky">
+      <div class="sl">IN-GAME PREVIEW</div>
+      <div class="preview-ground"><div id="poeLabel"><span id="poeIcon" style="display:none;"></span><span id="poeText">—</span></div></div>
+    </div>
+    <div class="footer">
+      <span class="esc">Esc to cancel</span>
+      <div class="btns">
+        <button class="btn cancel" id="btnCancel">Cancel</button>
+        <button class="btn add" id="btnAdd">Add &amp; reload</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="rulesPanel" style="display:none;">
+    <div class="header">
+      <img class="brand" src="logo.png" alt="PoeHotFilter">
+      <div class="title">Custom Filters</div>
+      <div class="subtitle" id="rulesCount">—</div>
+    </div>
+    <div class="body">
+      <div id="rulesList"></div>
+      <div class="hint" id="rulesEmpty" style="display:none;">
+        No custom filters yet. Hover an item in-game and press Ctrl + B to add one.
+      </div>
+    </div>
+    <div class="footer">
+      <span class="esc">Esc to close</span>
+      <div class="btns">
+        <button class="btn add" id="btnCloseRules">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="items.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

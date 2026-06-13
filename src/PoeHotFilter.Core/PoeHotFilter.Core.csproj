@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The craftable base-type dictionary (same file the playground uses). Embedded so the
+         Core can resolve a magic item's clean base from its affixed name. -->
+    <EmbeddedResource Include="..\..\items_min.json" Link="items_min.json" />
+  </ItemGroup>
+
+</Project>
