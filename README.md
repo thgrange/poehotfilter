@@ -123,6 +123,8 @@ real UI, fully self-contained.
 
 ## Credits & licensing
 
+PoeHotFilter is released under the **MIT License** — see [LICENSE](LICENSE).
+
 - **Minimap icons** are Grinding Gear Games' in-game sprites, used here as game assets.
 - **Fontin** font by Jos Buivenga ([exljbris](https://www.exljbris.com)) — free EULA permits program
   embedding; attribution kept in the CSS.
