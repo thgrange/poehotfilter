@@ -26,6 +26,8 @@ internal static class Program
     private static SynchronizationContext? _trayCtx;
     private static volatile bool _windowReady;
     private static bool _rulesDirty; // a rule was deleted in the list; reload on close
+    private static string _poeFolder = "";   // resolved PoE filter folder
+    private static bool _poeFolderValid;     // false = couldn't locate the real PoE folder
 
     private const int PopupWidth = 480;
     private const int PopupHeight = 820;
@@ -70,8 +72,10 @@ internal static class Program
         _settingsStore = SettingsStore.Default();
         _settings = _settingsStore.Load();
 
-        var poeFolder = _settings.PoeFolderOverride ?? PoePaths.DefaultFilterFolder()
-                        ?? Environment.CurrentDirectory;
+        var realPoe = _settings.PoeFolderOverride ?? PoePaths.DefaultFilterFolder();
+        _poeFolderValid = realPoe is not null;
+        _poeFolder = realPoe ?? Environment.CurrentDirectory;
+        var poeFolder = _poeFolder;
 
         var store = RuleStore.Default();
         var fileManager = new FilterFileManager(poeFolder);
@@ -249,17 +253,30 @@ internal static class Program
             active = PoePaths.ListUserFilters(poeFolder, "_PoeHotFilter.filter")
                 .OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
         }
-        if (active is null) return;
 
-        _settings.ActiveFilterPath = active;
-        _settingsStore.Save(_settings);
-        await _service.InitializeAsync(active);
+        if (active is not null)
+        {
+            _settings.ActiveFilterPath = active;
+            _settingsStore.Save(_settings);
+            await _service.InitializeAsync(active);
+        }
+        else
+        {
+            // No filter at all (fresh install / filtering disabled). Write our managed file so it
+            // shows up in PoE's filter list; the hotkey will tell the player to select it.
+            await _service.InitializeNoFilterAsync();
+            Log("No active filter found at startup");
+        }
 
-        // Watch for in-game filter switches / re-exports.
-        _watcher = new ActiveFilterWatcher(poeFolder);
-        _watcher.OnActiveFilterChanged += async p => { await _service.RetargetActiveFilterAsync(p); PushPresets(); };
-        _watcher.OnActiveFilterEdited += async p => { await _service.RetargetActiveFilterAsync(p); PushPresets(); };
-        _watcher.Start();
+        // Always watch (only meaningful if the real PoE folder exists) so we pick up the player
+        // selecting / creating a filter later, even if there was none at startup.
+        if (_poeFolderValid)
+        {
+            _watcher = new ActiveFilterWatcher(poeFolder);
+            _watcher.OnActiveFilterChanged += async p => { await _service.RetargetActiveFilterAsync(p); PushPresets(); };
+            _watcher.OnActiveFilterEdited += async p => { await _service.RetargetActiveFilterAsync(p); PushPresets(); };
+            _watcher.Start();
+        }
     }
 
     // ---- hotkey → capture → tell the UI to open the popup ----
@@ -269,6 +286,7 @@ internal static class Program
         try
         {
             if (!_windowReady) { Log("  -> window not ready, skipping"); return; }
+            if (_service.ActiveFilterPath is null) { ShowNoActiveFilter(); return; }
 
             var item = _service.CaptureHoveredItem();
             Log($"  -> captured: {(item is null ? "null" : $"{item.BaseType} | class={item.ItemClass} | ilvl={item.ItemLevel}")}");
@@ -311,12 +329,30 @@ internal static class Program
         try
         {
             if (!_windowReady) { Log("  -> window not ready, skipping"); return; }
+            if (_service.ActiveFilterPath is null) { ShowNoActiveFilter(); return; }
             ShowOverlay();
             Send("manualPick", new { });
             PushPresets();
         }
         catch (Exception ex) { Log($"  -> EXCEPTION: {ex}"); }
         await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// No filter is active in PoE. We've already written <c>_PoeHotFilter.filter</c> into the PoE
+    /// folder at startup, so tell the player to select it in-game (or show an error if we couldn't
+    /// even locate the PoE folder).
+    /// </summary>
+    private static void ShowNoActiveFilter()
+    {
+        Log("No active filter -> showing instructions");
+        ShowOverlay();
+        Send("noActiveFilter", new
+        {
+            poeFolderFound = _poeFolderValid,
+            filterName = _poeFolderValid ? _service.ManagedFilterName : "",
+            folder = _poeFolderValid ? _poeFolder : ""
+        });
     }
 
     private static CurrentStyleDto ToStyleDto(StyleMatch cur)

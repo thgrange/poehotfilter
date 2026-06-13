@@ -29,6 +29,7 @@ function handleMessage(raw){
     case 'itemCaptured': openPopup(msg.payload); showView('capture'); break;
     case 'manualPick': openManualPopup(); showView('capture'); break;
     case 'itemStyle': applyCurrentStyle(msg.payload); break;
+    case 'noActiveFilter': showNoFilter(msg.payload); break;
     case 'presets': renderPresets(msg.payload); break;
     case 'needInjection': askInjection(msg.payload.filter); break;
     case 'ruleAdded': closePopup(); break;
@@ -40,10 +41,32 @@ function handleMessage(raw){
 
 // ---- which panel is visible: 'capture' (add a rule) or 'rules' (manage list) ----
 function showView(which){
-  $('capturePanel').style.display = which==='capture' ? 'flex' : 'none';
-  $('rulesPanel').style.display   = which==='rules'   ? 'flex' : 'none';
+  $('capturePanel').style.display  = which==='capture'  ? 'flex' : 'none';
+  $('rulesPanel').style.display    = which==='rules'    ? 'flex' : 'none';
+  $('noFilterPanel').style.display = which==='noFilter' ? 'flex' : 'none';
 }
 function rulesVisible(){ return $('rulesPanel').style.display !== 'none'; }
+function noFilterVisible(){ return $('noFilterPanel').style.display !== 'none'; }
+
+// No loot filter is active in PoE: either guide the player to select the one we created,
+// or (if the PoE folder couldn't be found) show a plain error.
+function showNoFilter(p){
+  showView('noFilter');
+  if(p && p.poeFolderFound){
+    $('nfSub').textContent = 'PoE has no loot filter loaded';
+    $('nfBody').innerHTML =
+      `There's no item filter active in Path of Exile right now, so there's nothing to highlight into.<br><br>`+
+      `I created <b>${p.filterName}</b> in your filter folder. In game:<br>`+
+      `<b>Esc → Options → UI → Item Filter</b> — enable it and select <b>${p.filterName}</b> `+
+      `(or any of your own filters), then press the hotkey again.<br><br>`+
+      `<span style="color:var(--muted);font-size:11px;word-break:break-all;">${p.folder}</span>`;
+  } else {
+    $('nfSub').textContent = 'PoE folder not found';
+    $('nfBody').innerHTML =
+      `Couldn't find your Path of Exile folder (<i>Documents\\My Games\\Path of Exile</i>).<br><br>`+
+      `Make sure Path of Exile has been launched at least once so the folder exists, then try again.`;
+  }
+}
 
 function renderRules(list){
   const wrap=$('rulesList'); wrap.innerHTML='';
@@ -585,6 +608,7 @@ $('btnCancel').onclick=()=>{
   else { send('cancel',{}); closePopup(); }
 };
 $('btnCloseRules').onclick=()=>{ send('closeRules',{}); };
+$('btnNoFilterOk').onclick=()=>{ closePopup(); };
 // (no scrim-click-to-cancel: the window IS the popup; closing happens via buttons/Esc)
 document.addEventListener('keydown', e=>{
   if(e.key!=='Escape') return;

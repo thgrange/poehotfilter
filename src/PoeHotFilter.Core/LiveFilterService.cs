@@ -43,18 +43,49 @@ public sealed class LiveFilterService
         LoadPresets(activeFilterPath);
     }
 
-    /// <summary>True if the active filter already contains our managed Import line.</summary>
+    /// <summary>
+    /// Bootstrap when PoE has no active filter at all: load rules and write the managed
+    /// <c>_PoeHotFilter.filter</c> (so it shows up in PoE's filter list), but leave
+    /// <see cref="ActiveFilterPath"/> null. Presets fall back to the built-ins.
+    /// </summary>
+    public async Task InitializeNoFilterAsync(CancellationToken ct = default)
+    {
+        ActiveFilterPath = null;
+        _rules = await _store.LoadAsync(ct);
+        await RegenerateAsync(ct);
+        Presets = FilterStyleExtractor.CuratedPresets(null);
+    }
+
+    /// <summary>Absolute path of the managed file we own and regenerate.</summary>
+    public string ManagedFilePath => _fileManager.ManagedFilePath;
+
+    /// <summary>The managed filter's in-game name (no extension), e.g. "_PoeHotFilter".</summary>
+    public string ManagedFilterName => Path.GetFileNameWithoutExtension(_fileManager.ManagedFilePath);
+
+    /// <summary>True when the filter the player selected IS our managed file (rules live in it directly).</summary>
+    private bool ActiveIsManaged =>
+        ActiveFilterPath is not null &&
+        string.Equals(Path.GetFullPath(ActiveFilterPath), Path.GetFullPath(_fileManager.ManagedFilePath),
+                      StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True if our rules already apply: either the managed Import line is present in the active filter,
+    /// or the player is running our managed file directly (rules are written straight into it).
+    /// </summary>
     public bool IsImportInjected =>
-        ActiveFilterPath is not null && _fileManager.IsImportPresent(ActiveFilterPath);
+        ActiveIsManaged ||
+        (ActiveFilterPath is not null && _fileManager.IsImportPresent(ActiveFilterPath));
 
     /// <summary>
     /// Writes the Import line into the active filter (idempotent) and reloads in-game.
-    /// Call only after the user has approved touching this filter.
+    /// Call only after the user has approved touching this filter. Never self-imports when the
+    /// active filter is our own managed file.
     /// </summary>
     public async Task InjectImportAsync(bool reload = true, CancellationToken ct = default)
     {
         if (ActiveFilterPath is null) return;
-        await _fileManager.EnsureImportInjectedAsync(ActiveFilterPath, ct);
+        if (!ActiveIsManaged)
+            await _fileManager.EnsureImportInjectedAsync(ActiveFilterPath, ct);
         await RegenerateAsync(ct);
         if (reload) await _game.ReloadFilterAsync(ct);
     }

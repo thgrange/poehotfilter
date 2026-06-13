@@ -166,7 +166,17 @@ Messages : JS envoie `{type, payload}`. Types entrants côté C# : `ready` (→ 
 `queryStyle` (`{baseType,itemClass,stackable,isGem}` → répond `itemStyle`).
 Sortants vers JS : `itemCaptured` (`CapturedItemMsg`), `presets`, `needInjection`, `ruleAdded`, `noItem`,
 `manualPick` (hotkey pressé dans le vide → la UI ouvre le popup avec le sélecteur PICK ITEM),
-`itemStyle` (`CurrentStyleDto` : look actuel d'une base sous le filtre actif).
+`itemStyle` (`CurrentStyleDto` : look actuel d'une base sous le filtre actif),
+`noActiveFilter` (`{poeFolderFound, filterName, folder}` → panneau d'instructions, voir §5bis).
+
+**Pas de filtre actif** (§5bis) : si aucun filtre n'est sélectionné/chargé en jeu (`ActiveFilterPath`
+null), `InitializeNoFilterAsync` écrit quand même `_PoeHotFilter.filter` dans le dossier PoE (il
+apparaît donc dans la liste des filtres en jeu) sans définir de filtre actif. Au prochain hotkey, le
+popup montre un panneau **No active filter** disant au joueur de sélectionner `_PoeHotFilter` (Options →
+UI → Item Filter) — ou un message d'erreur si le dossier PoE est introuvable (`poeFolderFound=false`).
+Quand le joueur sélectionne `_PoeHotFilter`, le filtre actif **est** notre fichier géré : `IsImportInjected`
+renvoie true (garde `ActiveIsManaged`, pas d'auto-import circulaire), les règles s'écrivent directement
+dedans. L'`ActiveFilterWatcher` détecte la sélection et retarget automatiquement.
 
 **Mode "pick manuel"** : si le hotkey de capture est pressé sans item sous le curseur (le presse-papier
 ne change pas après le Ctrl+C simulé), `HotkeyService` lève `NoItemUnderCursor` → le popup s'ouvre avec
