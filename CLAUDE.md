@@ -173,7 +173,7 @@ Sortants vers JS : `itemCaptured` (`CapturedItemMsg`), `presets`, `needInjection
 null), `InitializeNoFilterAsync` écrit quand même `_PoeHotFilter.filter` dans le dossier PoE (il
 apparaît donc dans la liste des filtres en jeu) sans définir de filtre actif. Au prochain hotkey, le
 popup montre un panneau **No active filter** disant au joueur de sélectionner `_PoeHotFilter` (Options →
-UI → Item Filter) — ou un message d'erreur si le dossier PoE est introuvable (`poeFolderFound=false`).
+Game → Item Filter) — ou un message d'erreur si le dossier PoE est introuvable (`poeFolderFound=false`).
 Quand le joueur sélectionne `_PoeHotFilter`, le filtre actif **est** notre fichier géré : `IsImportInjected`
 renvoie true (garde `ActiveIsManaged`, pas d'auto-import circulaire), les règles s'écrivent directement
 dedans. L'`ActiveFilterWatcher` détecte la sélection et retarget automatiquement.

@@ -57,7 +57,7 @@ function showNoFilter(p){
     $('nfBody').innerHTML =
       `There's no item filter active in Path of Exile right now, so there's nothing to highlight into.<br><br>`+
       `I created <b>${p.filterName}</b> in your filter folder. In game:<br>`+
-      `<b>Esc → Options → UI → Item Filter</b> — enable it and select <b>${p.filterName}</b> `+
+      `<b>Esc → Options → Game → Item Filter</b> — enable it and select <b>${p.filterName}</b> `+
       `(or any of your own filters), then press the hotkey again.<br><br>`+
       `<span style="color:var(--muted);font-size:11px;word-break:break-all;">${p.folder}</span>`;
   } else {

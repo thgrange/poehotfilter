@@ -18,7 +18,7 @@ re-styles drops already on the ground.
 highlights are layered on top of whatever filter the game has loaded — if no filter is active, there
 is nothing to highlight into and the rules won't show.
 
-Make sure a filter is enabled in game: **Esc → Options → UI → Item Filter → enable it and pick a
+Make sure a filter is enabled in game: **Esc → Options → Game → Item Filter → enable it and pick a
 filter** (e.g. your NeverSink filter).
 
 If you have no filter at all, PoeHotFilter creates one named **`_PoeHotFilter`** in your filter folder
