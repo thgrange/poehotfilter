@@ -28,6 +28,7 @@ internal static class Program
     private static bool _rulesDirty; // a rule was deleted in the list; reload on close
     private static string _poeFolder = "";   // resolved PoE filter folder
     private static bool _poeFolderValid;     // false = couldn't locate the real PoE folder
+    private static Mutex? _instanceMutex;    // single-instance guard (kept alive for app lifetime)
 
     private const int PopupWidth = 480;
     private const int PopupHeight = 820;
@@ -68,6 +69,15 @@ internal static class Program
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log($"UNHANDLED: {e.ExceptionObject}");
         TaskScheduler.UnobservedTaskException += (_, e) => { Log($"TASK UNHANDLED: {e.Exception}"); e.SetObserved(); };
         Log("=== App starting ===");
+
+        // Single-instance guard: multiple instances each register a global hotkey hook and fight over
+        // the tray/log, and make the "Start with Windows" check state diverge. Allow only one.
+        _instanceMutex = new Mutex(initiallyOwned: true, @"Local\PoeHotFilter_SingleInstance", out bool isNewInstance);
+        if (!isNewInstance)
+        {
+            Log("Another instance is already running — exiting.");
+            return;
+        }
 
         _settingsStore = SettingsStore.Default();
         _settings = _settingsStore.Load();
@@ -178,8 +188,17 @@ internal static class Program
         var header = (ToolStripMenuItem)menu.Items.Add($"PoeHotFilter — {hotkeyLabel} on a hovered item (or empty ground to pick one)");
         header.Enabled = false;
         menu.Items.Add(new ToolStripSeparator());
-        var startup = new ToolStripMenuItem("Start with Windows") { CheckOnClick = true, Checked = IsStartupEnabled() };
-        startup.CheckedChanged += (_, _) => SetStartup(startup.Checked);
+        // Authoritative toggle: decide enable/disable from the ACTUAL registry state (not a cached
+        // check mark), and refresh the check mark from the registry every time the menu opens — so it
+        // can never get out of sync (which previously let a stale "checked" state silently disable it).
+        var startup = new ToolStripMenuItem("Start with Windows") { Checked = IsStartupEnabled() };
+        startup.Click += (_, _) =>
+        {
+            bool enable = !IsStartupEnabled();
+            SetStartup(enable);
+            startup.Checked = IsStartupEnabled();
+        };
+        menu.Opening += (_, _) => startup.Checked = IsStartupEnabled();
         menu.Items.Add(startup);
         menu.Items.Add("Quit", null, (_, _) => Quit());
 
